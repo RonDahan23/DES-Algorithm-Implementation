@@ -9,7 +9,6 @@ public class DESImplementation {
 
     public static String[] CreateTheKey(String OriginalKey) // main
     {
-        
 
         if (OriginalKey.length() != 8) {
             System.out.println("Error: Key length is not 64 bits");
@@ -19,14 +18,13 @@ public class DESImplementation {
         String Key = strTobin(OriginalKey);
 
         Key = Key.replace(" ", "");
-        
+
         String permutedKey = generatePermutedKey56(Key);
         String C0 = permutedKey.substring(0, 28);
         String D0 = permutedKey.substring(28, 56);
 
         String[] K = Do16LeftShift(C0, D0);
         K = generatePermutedKey48(K);
-        printer(K);
 
         return K;
     }
@@ -128,8 +126,9 @@ public class DESImplementation {
 
     // ------------------------------"Create The M"------------------------------
 
-    public static void EncodeEach64BitBlockOfData(String M) // main
+    public static void Encrypt(String M, String Key) // main
     {
+        String[] allKeys = CreateTheKey(Key);
 
         List<String> blocks = performBlockDivision(M);
         String[] BinaryBlocks = new String[blocks.size()];
@@ -140,10 +139,13 @@ public class DESImplementation {
         String[] LeftK = ReturnLeftSideArray(BinaryBlocks);
         String[] RightK = ReturnRightSideArray(BinaryBlocks);
 
-        printer(LeftK);
-        System.out.println();
-        System.out.println();
-        printer(RightK);
+        String[] EncryptText = Do16Rounds(LeftK, RightK, allKeys);
+
+        EncryptText = FPTableImplementation(EncryptText);
+
+        String CyperText = binaryToAsciiString(EncryptText);
+
+        System.out.println("The Cyper Text is: " + CyperText);
 
     }
 
@@ -151,14 +153,15 @@ public class DESImplementation {
 
         for (int i = 0; i < blocks.size(); i++) {
             String block = blocks.get(i);
-            String binaryBlock = convertToBinary(block);
+            String binaryBlock = strTobin(block);
+            binaryBlock = binaryBlock.replace(" ", "");
             BinaryBlocks[i] = binaryBlock;
         }
         return BinaryBlocks;
 
     }
 
-    public static String[] IpTableImplementation(String[] BinaryBlocks) { // good morning ron, start here!
+    public static String[] IpTableImplementation(String[] BinaryBlocks) {
 
         Integer[] IPTable = {
                 58, 50, 42, 34, 26, 18, 10, 2,
@@ -182,15 +185,6 @@ public class DESImplementation {
 
         return BinaryBlocks;
 
-    }
-
-    public static String convertToBinary(String input) {
-        StringBuilder binaryBuilder = new StringBuilder();
-        for (char c : input.toCharArray()) {
-            String binaryChar = String.format("%8s", Integer.toBinaryString(c)).replace(' ', '0');
-            binaryBuilder.append(binaryChar);
-        }
-        return binaryBuilder.toString().trim();
     }
 
     public static List<String> performBlockDivision(String M) {
@@ -237,6 +231,250 @@ public class DESImplementation {
         }
         return RightK;
     }
+
+    public static String[] Do16Rounds(String[] LeftK, String[] RightK, String[] allKeys) {
+
+        String LastL = "";
+        String LastR = "";
+
+        String[] AllEncText = new String[LeftK.length];
+
+        for (int i = 0; i < LeftK.length || i < RightK.length; i++) {
+
+            LastL = LeftK[i];
+            LastR = RightK[i];
+
+            for (int x = 0; x < allKeys.length; x++) {
+                String L1 = LastR;
+                String R1 = XorFunction(LastL,
+                        PTableImplementation(Sbox(XorFunction(ETableImplementation(LastR), allKeys[x]))));
+
+                // Update LastL and LastR for the next iteration
+                LastL = L1;
+                LastR = R1;
+
+            }
+            AllEncText[i] = (LastL + LastR);
+
+        }
+
+        for (int i = 0; i < AllEncText.length; i++) {
+
+            String RotateR = AllEncText[i].substring(0, 32);
+            String RotateL = AllEncText[i].substring(32, 64);
+            AllEncText[i] = RotateL + RotateR;
+
+        }
+
+        return AllEncText;
+
+    }
+
+    public static String ETableImplementation(String R) {
+
+        String E = "";
+
+        int[] E_TABLE = {
+                32, 1, 2, 3, 4, 5,
+                4, 5, 6, 7, 8, 9,
+                8, 9, 10, 11, 12, 13,
+                12, 13, 14, 15, 16, 17,
+                16, 17, 18, 19, 20, 21,
+                20, 21, 22, 23, 24, 25,
+                24, 25, 26, 27, 28, 29,
+                28, 29, 30, 31, 32, 1 };
+
+        for (int i : E_TABLE) {
+            E += R.charAt(i - 1);
+        }
+
+        return E;
+    }
+
+    public static String XorFunction(String E, String K) {
+        String ans = "";
+
+        for (int i = 0; i < E.length() || i < K.length(); i++) // xor between K and E
+        {
+            // If the Character matches
+            if (E.charAt(i) == K.charAt(i))
+                ans += "0";
+            else
+                ans += "1";
+        }
+
+        return ans;
+
+    }
+
+    public static String Sbox(String XorAns) {
+
+        int[][] S1 = {
+                { 14, 4, 13, 1, 2, 15, 11, 8, 3, 10, 6, 12, 5, 9, 0, 7 },
+                { 0, 15, 7, 4, 14, 2, 13, 1, 10, 6, 12, 11, 9, 5, 3, 8 },
+                { 4, 1, 14, 8, 13, 6, 2, 11, 15, 12, 9, 7, 3, 10, 5, 0 },
+                { 15, 12, 8, 2, 4, 9, 1, 7, 5, 11, 3, 14, 10, 0, 6, 13 } };
+
+        int[][] S2 = {
+                { 15, 1, 8, 14, 6, 11, 3, 4, 9, 7, 2, 13, 12, 0, 5, 10 },
+                { 3, 13, 4, 7, 15, 2, 8, 14, 12, 0, 1, 10, 6, 9, 11, 5 },
+                { 0, 14, 7, 11, 10, 4, 13, 1, 5, 8, 12, 6, 9, 3, 2, 15 },
+                { 13, 8, 10, 1, 3, 15, 4, 2, 11, 6, 7, 12, 0, 5, 14, 9 } };
+
+        int[][] S3 = {
+                { 10, 0, 9, 14, 6, 3, 15, 5, 1, 13, 12, 7, 11, 4, 2, 8 },
+                { 13, 7, 0, 9, 3, 4, 6, 10, 2, 8, 5, 14, 12, 11, 15, 1 },
+                { 13, 6, 4, 9, 8, 15, 3, 0, 11, 1, 2, 12, 5, 10, 14, 7 },
+                { 1, 10, 13, 0, 6, 9, 8, 7, 4, 15, 14, 3, 11, 5, 2, 12 } };
+
+        int[][] S4 = {
+                { 7, 13, 14, 3, 0, 6, 9, 10, 1, 2, 8, 5, 11, 12, 4, 15 },
+                { 13, 8, 11, 5, 6, 15, 0, 3, 4, 7, 2, 12, 1, 10, 14, 9 },
+                { 10, 6, 9, 0, 12, 11, 7, 13, 15, 1, 3, 14, 5, 2, 8, 4 },
+                { 3, 15, 0, 6, 10, 1, 13, 8, 9, 4, 5, 11, 12, 7, 2, 14 } };
+
+        int[][] S5 = {
+                { 2, 12, 4, 1, 7, 10, 11, 6, 8, 5, 3, 15, 13, 0, 14, 9 },
+                { 14, 11, 2, 12, 4, 7, 13, 1, 5, 0, 15, 10, 3, 9, 8, 6 },
+                { 4, 2, 1, 11, 10, 13, 7, 8, 15, 9, 12, 5, 6, 3, 0, 14 },
+                { 11, 8, 12, 7, 1, 14, 2, 13, 6, 15, 0, 9, 10, 4, 5, 3 } };
+
+        int[][] S6 = {
+                { 12, 1, 10, 15, 9, 2, 6, 8, 0, 13, 3, 4, 14, 7, 5, 11 },
+                { 10, 15, 4, 2, 7, 12, 9, 5, 6, 1, 13, 14, 0, 11, 3, 8 },
+                { 9, 14, 15, 5, 2, 8, 12, 3, 7, 0, 4, 10, 1, 13, 11, 6 },
+                { 4, 3, 2, 12, 9, 5, 15, 10, 11, 14, 1, 7, 6, 0, 8, 13 } };
+
+        int[][] S7 = {
+                { 4, 11, 2, 14, 15, 0, 8, 13, 3, 12, 9, 7, 5, 10, 6, 1 },
+                { 13, 0, 11, 7, 4, 9, 1, 10, 14, 3, 5, 12, 2, 15, 8, 6 },
+                { 1, 4, 11, 13, 12, 3, 7, 14, 10, 15, 6, 8, 0, 5, 9, 2 },
+                { 6, 11, 13, 8, 1, 4, 10, 7, 9, 5, 0, 15, 14, 2, 3, 12 } };
+
+        int[][] S8 = {
+                { 13, 2, 8, 4, 6, 15, 11, 1, 10, 9, 3, 14, 5, 0, 12, 7 },
+                { 1, 15, 13, 8, 10, 3, 7, 4, 12, 5, 6, 11, 0, 14, 9, 2 },
+                { 7, 11, 4, 1, 9, 12, 14, 2, 0, 6, 10, 13, 15, 3, 5, 8 },
+                { 2, 1, 14, 7, 4, 10, 8, 13, 15, 12, 9, 0, 3, 5, 6, 11 } };
+
+        String RB1 = XorAns.substring(0, 6);
+        String row1 = String.valueOf(RB1.substring(0, 1) + RB1.substring(5, 6));
+        String col1 = String.valueOf(RB1.substring(1, 5));
+        int target = S1[Integer.parseInt(row1, 2)][Integer.parseInt(col1, 2)];
+        String binaryTarget = String.format("%4s", Integer.toBinaryString(target)).replace(' ', '0');
+
+        String RB2 = XorAns.substring(6, 12);
+        row1 = String.valueOf(RB2.substring(0, 1) + RB2.substring(5, 6));
+        col1 = String.valueOf(RB2.substring(1, 5));
+        target = S2[Integer.parseInt(row1, 2)][Integer.parseInt(col1, 2)];
+        binaryTarget += String.format("%4s", Integer.toBinaryString(target)).replace(' ', '0');
+
+        String RB3 = XorAns.substring(12, 18);
+        row1 = String.valueOf(RB3.substring(0, 1) + RB3.substring(5, 6));
+        col1 = String.valueOf(RB3.substring(1, 5));
+        target = S3[Integer.parseInt(row1, 2)][Integer.parseInt(col1, 2)];
+        binaryTarget += String.format("%4s", Integer.toBinaryString(target)).replace(' ', '0');
+
+        String RB4 = XorAns.substring(18, 24);
+        row1 = String.valueOf(RB4.substring(0, 1) + RB4.substring(5, 6));
+        col1 = String.valueOf(RB4.substring(1, 5));
+        target = S4[Integer.parseInt(row1, 2)][Integer.parseInt(col1, 2)];
+        binaryTarget += String.format("%4s", Integer.toBinaryString(target)).replace(' ', '0');
+
+        String RB5 = XorAns.substring(24, 30);
+        row1 = String.valueOf(RB5.substring(0, 1) + RB5.substring(5, 6));
+        col1 = String.valueOf(RB5.substring(1, 5));
+        target = S5[Integer.parseInt(row1, 2)][Integer.parseInt(col1, 2)];
+        binaryTarget += String.format("%4s", Integer.toBinaryString(target)).replace(' ', '0');
+
+        String RB6 = XorAns.substring(30, 36);
+        row1 = String.valueOf(RB6.substring(0, 1) + RB6.substring(5, 6));
+        col1 = String.valueOf(RB6.substring(1, 5));
+        target = S6[Integer.parseInt(row1, 2)][Integer.parseInt(col1, 2)];
+        binaryTarget += String.format("%4s", Integer.toBinaryString(target)).replace(' ', '0');
+
+        String RB7 = XorAns.substring(36, 42);
+        row1 = String.valueOf(RB7.substring(0, 1) + RB7.substring(5, 6));
+        col1 = String.valueOf(RB7.substring(1, 5));
+        target = S7[Integer.parseInt(row1, 2)][Integer.parseInt(col1, 2)];
+        binaryTarget += String.format("%4s", Integer.toBinaryString(target)).replace(' ', '0');
+
+        String RB8 = XorAns.substring(42, 48);
+        row1 = String.valueOf(RB8.substring(0, 1) + RB8.substring(5, 6));
+        col1 = String.valueOf(RB8.substring(1, 5));
+        target = S8[Integer.parseInt(row1, 2)][Integer.parseInt(col1, 2)];
+        binaryTarget += String.format("%4s", Integer.toBinaryString(target)).replace(' ', '0');
+
+        return binaryTarget;
+    }
+
+    public static String PTableImplementation(String StringFromSbox) {
+        String P = "";
+
+        int[] PTable = { 16, 7, 20, 21,
+                29, 12, 28, 17,
+                1, 15, 23, 26,
+                5, 18, 31, 10,
+                2, 8, 24, 14,
+                32, 27, 3, 9,
+                19, 13, 30, 6,
+                22, 11, 4, 25 };
+
+        for (int i : PTable) {
+            P += StringFromSbox.charAt(i - 1);
+        }
+
+        return P;
+
+    }
+
+    public static String[] FPTableImplementation(String[] EncryptText) {
+
+        String FP = "";
+
+        int[] FPTable = {
+                40, 8, 48, 16, 56, 24, 64, 32,
+                39, 7, 47, 15, 55, 23, 63, 31,
+                38, 6, 46, 14, 54, 22, 62, 30,
+                37, 5, 45, 13, 53, 21, 61, 29,
+                36, 4, 44, 12, 52, 20, 60, 28,
+                35, 3, 43, 11, 51, 19, 59, 27,
+                34, 2, 42, 10, 50, 18, 58, 26,
+                33, 1, 41, 9, 49, 17, 57, 25 };
+
+        for (int i = 0; i < EncryptText.length; i++) {
+
+            for (int x : FPTable) {
+                FP += EncryptText[i].charAt(x - 1);
+            }
+
+            EncryptText[i] = FP;
+        }
+
+        return EncryptText;
+
+    }
+
+    public static String binaryToAsciiString(String[] EncryptText) {
+
+        StringBuilder CyperText = new StringBuilder();
+
+        for (int i = 0; i < EncryptText.length; i++) {
+            // Split the binary string into 8-bit chunks (ASCII characters are 8 bits long)
+            String[] binaryChunks = EncryptText[i].split("(?<=\\G.{8})");
+
+            // Convert each 8-bit binary chunk to its ASCII value and then to a character
+            for (String chunk : binaryChunks) {
+                int asciiValue = Integer.parseInt(chunk, 2);
+                char c = (char) asciiValue;
+                CyperText.append(c);
+            }
+
+        }
+
+        return CyperText.toString();
+    }
+
     // ------------------------------"Create The M"------------------------------
 
     public static void printer(String a[]) {
