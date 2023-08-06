@@ -1,14 +1,12 @@
-import java.security.Key;
+import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class DESImplementation {
 
     // ------------------------------"Create The KEY"------------------------------
 
-    public static String[] CreateTheKey(String OriginalKey) // main
-    {
+    public static String[] CreateTheKeyForE(String OriginalKey) {
 
         if (OriginalKey.length() != 8) {
             System.out.println("Error: Key length is not 64 bits");
@@ -27,6 +25,33 @@ public class DESImplementation {
         K = generatePermutedKey48(K);
 
         return K;
+    }
+
+    public static String[] CreateTheKeyForD(String OriginalKey) {
+
+        if (OriginalKey.length() != 8) {
+            System.out.println("Error: Key length is not 64 bits");
+            return null; // or return an appropriate value or handle the error case
+        }
+
+        String Key = strTobin(OriginalKey);
+
+        Key = Key.replace(" ", "");
+
+        String permutedKey = generatePermutedKey56(Key);
+        String C0 = permutedKey.substring(0, 28);
+        String D0 = permutedKey.substring(28, 56);
+
+        String[] K = Do16LeftShift(C0, D0);
+        K = generatePermutedKey48(K);
+
+        String[] ReverseK = new String[K.length];
+        int x = 0;
+        for (int i = K.length - 1; i >= 0; i--, x++) {
+            ReverseK[x] = K[i];
+        }
+
+        return ReverseK;
     }
 
     /* Convert string to binary string */
@@ -124,16 +149,15 @@ public class DESImplementation {
 
     // ------------------------------"Create The KEY"------------------------------
 
-    // ------------------------------"Create The M"------------------------------
+    // ------------------------------"Create The Encryption
+    // Text"------------------------------
 
-    public static void Encrypt(String M, String Key) // main
-    {
-        String[] allKeys = CreateTheKey(Key);
+    public static void Encrypt(String M, String Key) {
+        String[] allKeys = CreateTheKeyForE(Key);
 
-        List<String> blocks = performBlockDivision(M);
-        String[] BinaryBlocks = new String[blocks.size()];
+        M = stringToHex(M);
 
-        BinaryBlocks = InsertListToArray(blocks, BinaryBlocks);
+        String[] BinaryBlocks = hexToBinaryArray(M);
         BinaryBlocks = IpTableImplementation(BinaryBlocks);
 
         String[] LeftK = ReturnLeftSideArray(BinaryBlocks);
@@ -143,10 +167,46 @@ public class DESImplementation {
 
         EncryptText = FPTableImplementation(EncryptText);
 
-        String CyperText = binaryToAsciiString(EncryptText);
+        String hexOutputs = binaryToHex(EncryptText);
 
-        System.out.println("The Cyper Text is: " + CyperText);
+        System.out.println();
+        System.out.println("The Cyper Text is: " + hexOutputs);
 
+    }
+
+    public static String stringToHex(String input) {
+        StringBuilder hexBuilder = new StringBuilder();
+        for (char c : input.toCharArray()) {
+            String hex = Integer.toHexString(c);
+            if (hex.length() == 1) {
+                hexBuilder.append("0"); // Add leading zero if needed
+            }
+            hexBuilder.append(hex);
+        }
+        return hexBuilder.toString().toUpperCase();
+    }
+
+    public static String[] hexToBinaryArray(String hexString) {
+
+        BigInteger bigInt = new BigInteger(hexString, 16);
+
+        String binaryString = bigInt.toString(2);
+
+        int length = (hexString.length() * 4 + 63) / 64 * 64;
+        while (binaryString.length() < length) {
+            binaryString = "0" + binaryString;
+        }
+
+        int numOfChunks = length / 64;
+        String[] binaryArray = new String[numOfChunks];
+        int index = 0;
+        for (int i = 0; i < length; i += 64) {
+            int endIndex = Math.min(i + 64, length);
+            String binaryChunk = binaryString.substring(i, endIndex);
+            binaryArray[index++] = binaryChunk;
+        }
+
+        return binaryArray;
     }
 
     public static String[] InsertListToArray(List<String> blocks, String[] BinaryBlocks) {
@@ -191,8 +251,8 @@ public class DESImplementation {
         List<String> blocks = new ArrayList<>();
 
         // Step 1: Padding
-        int paddingSize = 8 - (M.length() % 8);
-        if (paddingSize < 8) {
+        int paddingSize = 64 - (M.length() % 64);
+        if (paddingSize < 64) {
             StringBuilder paddedM = new StringBuilder(M);
             for (int i = 0; i < paddingSize; i++) {
                 paddedM.append(' ');
@@ -201,10 +261,10 @@ public class DESImplementation {
         }
 
         // Step 2: Block Division
-        int numBlocks = M.length() / 8;
+        int numBlocks = M.length() / 64;
         for (int i = 0; i < numBlocks; i++) {
-            int startIndex = i * 8;
-            int endIndex = (i + 1) * 8;
+            int startIndex = i * 64;
+            int endIndex = (i + 1) * 64;
             String block = M.substring(startIndex, endIndex);
             blocks.add(block);
         }
@@ -430,8 +490,6 @@ public class DESImplementation {
 
     public static String[] FPTableImplementation(String[] EncryptText) {
 
-        String FP = "";
-
         int[] FPTable = {
                 40, 8, 48, 16, 56, 24, 64, 32,
                 39, 7, 47, 15, 55, 23, 63, 31,
@@ -444,6 +502,8 @@ public class DESImplementation {
 
         for (int i = 0; i < EncryptText.length; i++) {
 
+            String FP = "";
+
             for (int x : FPTable) {
                 FP += EncryptText[i].charAt(x - 1);
             }
@@ -455,33 +515,76 @@ public class DESImplementation {
 
     }
 
-    public static String binaryToAsciiString(String[] EncryptText) {
+    public static String binaryToHex(String[] binaryNumber) {
 
-        StringBuilder CyperText = new StringBuilder();
+        String CyperText = "";
+        for (int i = 0; i < binaryNumber.length; i++) {
+            BigInteger decimalNumber = new BigInteger(binaryNumber[i], 2); // Convert binary to decimal using BigInteger
+            String hexNumber = decimalNumber.toString(16); // Convert decimal to hexadecimal
 
-        for (int i = 0; i < EncryptText.length; i++) {
-            // Split the binary string into 8-bit chunks (ASCII characters are 8 bits long)
-            String[] binaryChunks = EncryptText[i].split("(?<=\\G.{8})");
+            binaryNumber[i] = hexNumber.toUpperCase();
 
-            // Convert each 8-bit binary chunk to its ASCII value and then to a character
-            for (String chunk : binaryChunks) {
-                int asciiValue = Integer.parseInt(chunk, 2);
-                char c = (char) asciiValue;
-                CyperText.append(c);
+        }
+        for (int i = 0; i < binaryNumber.length; i++) {
+            CyperText += binaryNumber[i];
+
+        }
+
+        return CyperText;
+    }
+
+    public static String binaryArrayToText(String[] binaryDataArray) {
+        String Result = "";
+        String[] textArray = new String[binaryDataArray.length];
+
+        for (int j = 0; j < binaryDataArray.length; j++) {
+            String binaryData = binaryDataArray[j];
+            StringBuilder text = new StringBuilder();
+            int length = binaryData.length();
+
+            for (int i = 0; i < length; i += 8) {
+                String chunk = binaryData.substring(i, Math.min(length, i + 8));
+                int decimalValue = Integer.parseInt(chunk, 2);
+                char character = (char) decimalValue;
+                text.append(character);
             }
 
+            textArray[j] = text.toString();
+        }
+        for (int i = 0; i < textArray.length; i++) {
+            Result += textArray[i];
+
         }
 
-        return CyperText.toString();
+        return Result;
+    }
+    // ------------------------------"Create The Encryption
+    // Text"------------------------------
+
+    // ------------------------------"Decryption"------------------------------
+
+    public static void Decrypt(String M, String Key) {
+
+        String[] ReverseAllKeys = CreateTheKeyForD(Key);
+
+        String[] BinaryBlocks = hexToBinaryArray(M);
+
+        BinaryBlocks = IpTableImplementation(BinaryBlocks);
+
+        String[] LeftK = ReturnLeftSideArray(BinaryBlocks);
+        String[] RightK = ReturnRightSideArray(BinaryBlocks);
+
+        String[] DecryptText = Do16Rounds(LeftK, RightK, ReverseAllKeys);
+
+        DecryptText = FPTableImplementation(DecryptText);
+
+        String Output = binaryArrayToText(DecryptText);
+
+        System.out.println();
+        System.out.println("The Decrypt Text is: " + Output);
+
     }
 
-    // ------------------------------"Create The M"------------------------------
-
-    public static void printer(String a[]) {
-        for (int i = 0; i < a.length; i++) {
-            System.out.print(a[i] + ",");
-        }
-
-    }
+    // ------------------------------"Decryption"------------------------------
 
 }
