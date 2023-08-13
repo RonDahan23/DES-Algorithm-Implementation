@@ -152,7 +152,7 @@ public class DESImplementation {
     // ------------------------------"Create The Encryption
     // Text"------------------------------
 
-    public static void Encrypt(String M, String Key) {
+    public static String Encrypt(String M, String Key) {
         String[] allKeys = CreateTheKeyForE(Key);
 
         M = stringToHex(M);
@@ -169,8 +169,7 @@ public class DESImplementation {
 
         String hexOutputs = binaryToHex(EncryptText);
 
-        System.out.println();
-        System.out.println("The Cyper Text is: " + hexOutputs);
+        return hexOutputs;
 
     }
 
@@ -187,23 +186,28 @@ public class DESImplementation {
     }
 
     public static String[] hexToBinaryArray(String hexString) {
+        StringBuilder binaryStringBuilder = new StringBuilder();
 
-        BigInteger bigInt = new BigInteger(hexString, 16);
-
-        String binaryString = bigInt.toString(2);
-
-        int length = (hexString.length() * 4 + 63) / 64 * 64;
-        while (binaryString.length() < length) {
-            binaryString = "0" + binaryString;
+        for (char c : hexString.toCharArray()) {
+            String binary = Integer.toBinaryString(Character.digit(c, 16));
+            binaryStringBuilder.append("0000", 0, 4 - binary.length()).append(binary);
         }
 
-        int numOfChunks = length / 64;
-        String[] binaryArray = new String[numOfChunks];
-        int index = 0;
-        for (int i = 0; i < length; i += 64) {
-            int endIndex = Math.min(i + 64, length);
-            String binaryChunk = binaryString.substring(i, endIndex);
-            binaryArray[index++] = binaryChunk;
+        String binaryString = binaryStringBuilder.toString();
+
+        // Calculate the total length needed for padding
+        int totalLength = (binaryString.length() + 63) / 64 * 64;
+
+        // Perform zero-padding to the right
+        while (binaryString.length() < totalLength) {
+            binaryString += "0";
+        }
+
+        // Create the array and populate it with 64-bit binary strings
+        int numElements = totalLength / 64;
+        String[] binaryArray = new String[numElements];
+        for (int i = 0; i < numElements; i++) {
+            binaryArray[i] = binaryString.substring(i * 64, (i + 1) * 64);
         }
 
         return binaryArray;
@@ -558,12 +562,12 @@ public class DESImplementation {
 
         return Result;
     }
-    // ------------------------------"Create The Encryption
-    // Text"------------------------------
+    // ------------------------"Create The Encryption
+    // Text"---------------------------
 
-    // ------------------------------"Decryption"------------------------------
+    // ---------------------------------"Decryption"---------------------------------
 
-    public static void Decrypt(String M, String Key) {
+    public static String Decrypt(String M, String Key) {
 
         String[] ReverseAllKeys = CreateTheKeyForD(Key);
 
@@ -580,8 +584,7 @@ public class DESImplementation {
 
         String Output = binaryArrayToText(DecryptText);
 
-        System.out.println();
-        System.out.println("The Decrypt Text is: " + Output);
+        return Output;
 
     }
 
